@@ -1,0 +1,29 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+.venv/
+venv/
+env/
+ENV/
+
+
+*.7z
+*Zone.Identifier
+
+
+*.png
+runs/
+plots/
+searches/
+*.html
+
+
+.vscode/
+.idea/
+.DS_Store
+
+
