@@ -44,7 +44,7 @@ def Factory(layers,loaded_embeddings,loaded_categories,loaded_categories_list,un
 
 
 
-def gridSearch(embeddingFile, run, dimensionReductionType, secondReductionType, resolution, embeddingModel, plotting=True):
+def gridSearch(embeddingFile, run, dimensionReductionType, resolution, embeddingModel, plotting=True):
     loaded = np.load(embeddingFile, allow_pickle=True)
     loaded_embeddings = loaded["embeddings"]
     loaded_categories = loaded["categories"]
@@ -53,7 +53,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondReductionType, 
     unchanged = loaded_embeddings
     original_embeddings = loaded_embeddings.copy()
     
-    #Only need to calculate this once
+    # Pre-calculate high-dimensional pairwise distance matrix to avoid recalculation inside Factory
     D_high = pdist(original_embeddings)
     
 
@@ -108,7 +108,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondReductionType, 
                 {
                     "type": "Algorithm",
                     "parameters": {
-                        "method": secondReductionType,
+                        "method": dimensionReductionType,
                         "output_size": 2
                     }
                 }
@@ -145,7 +145,6 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondReductionType, 
     print(len(grid))
 
     average_metrics = (continuity + trustworthiness + cluster_ordering + pearson + spearman + silhouette) / 6.0
-    #plots the metrics and time taken
     if plotting:
         fig, axes = plt.subplots(2, 4, figsize=(32, 12))
 
@@ -209,9 +208,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondReductionType, 
         "grid": grid,
         "embeddingModel": embeddingModel,
     })
-    
-    if dimensionReductionType != secondReductionType:
-        dimensionReductionType = f"{dimensionReductionType}_{secondReductionType}"
+
     saveResults(save_dict, dimensionReductionType, run, embeddingModel)
     
 
@@ -224,7 +221,6 @@ def saveResults(save_dict, dimensionReductionType, run, embeddingModel):
 
 
 def main():
-    print("starting")
     parser = argparse.ArgumentParser(description="Perform a grid search comparing dimensionality reduction and noise levels.")
     parser.add_argument(
         "-f", "--embedding-file",
@@ -236,6 +232,12 @@ def main():
         type=int,
         default=5,
         help="Number of runs to execute (default: 5)"
+    )
+    parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="Specific run ID to execute (0-indexed). If specified, runs only this run instead of looping through all runs."
     )
     parser.add_argument(
         "-t", "--dr-type",
@@ -286,16 +288,20 @@ def main():
         print(f"Error loading embedding model from '{embedding_file}': {e}")
         embeddingModel = "UnknownModel"
 
-    print("...")
+    # Determine which runs to execute
+    if args.run is not None:
+        runs_to_execute = [args.run]
+    else:
+        runs_to_execute = list(range(args.runs))
 
     # Run primary dimension reduction type
-    for run in range(args.runs):
-        gridSearch(embedding_file, run, args.dr_type, args.dr_type, args.resolution, embeddingModel, plotting=plot)
+    for run in runs_to_execute:
+        gridSearch(embedding_file, run, args.dr_type, args.resolution, embeddingModel, plotting=plot)
 
     # Run secondary optional dimension reduction type if provided
     if args.dr_type_secondary:
-        for run in range(args.runs):
-            gridSearch(embedding_file, run, args.dr_type, args.dr_type_secondary, args.resolution, embeddingModel, plotting=plot)
+        for run in runs_to_execute:
+            gridSearch(embedding_file, run, args.dr_type_secondary, args.resolution, embeddingModel, plotting=plot)
 
 if __name__ == "__main__":
     main()
