@@ -45,7 +45,7 @@ def Factory(layers,loaded_embeddings,loaded_categories,loaded_categories_list,un
 
 
 
-def gridSearch(embeddingFile, run, dimensionReductionType, resolution, embeddingModel, plotting=True):
+def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReductionType, resolution, embeddingModel, plotting=True):
     loaded = np.load(embeddingFile, allow_pickle=True)
     loaded_embeddings = loaded["embeddings"]
     loaded_categories = loaded["categories"]
@@ -110,7 +110,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, resolution, embedding
                 {
                     "type": "Algorithm",
                     "parameters": {
-                        "method": dimensionReductionType,
+                        "method": secondDimensionReductionType,
                         "output_size": 2
                     }
                 }
@@ -132,7 +132,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, resolution, embedding
             silhouette[x][y] = silhouetteMetric
             wall_clock_time[x][y] = endTime - startTime
 
-            # Estimate number of clusters via DBSCAN on final reduced embeddings
+            #This estimates the number of clusters
             dbscan_labels = DBSCAN().fit_predict(loaded_emb)
             n_clusters = len(set(dbscan_labels) - {-1})
             dbscan_clusters[x][y] = n_clusters
@@ -152,6 +152,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, resolution, embedding
     print(len(grid))
 
     average_metrics = (continuity + trustworthiness + cluster_ordering + pearson + spearman + silhouette) / 6.0
+    #average_metrics = (continuity + trustworthiness + np.abs(cluster_ordering) + np.abs(pearson) + np.abs(spearman) + silhouette) / 6.0
     if plotting:
         fig, axes = plt.subplots(2, 4, figsize=(32, 12))
 
@@ -222,12 +223,13 @@ def gridSearch(embeddingFile, run, dimensionReductionType, resolution, embedding
         "silhouette": silhouette,
         "wall_clock_time": wall_clock_time,
         "average_metrics": average_metrics,
-        "grid": grid,
         "dbscan_clusters": dbscan_clusters,
         "embeddingModel": embeddingModel,
+        "primaryDimReductType": dimensionReductionType,
+        "secondaryDimReductType": secondDimensionReductionType,
     })
-    if dimensionReductionType != secondReductionType:
-        dimensionReductionType = f"{dimensionReductionType}_{secondReductionType}"
+    if dimensionReductionType != secondDimensionReductionType:
+        dimensionReductionType = f"{dimensionReductionType}_{secondDimensionReductionType}"
     saveResults(save_dict, dimensionReductionType, run, embeddingModel)
     
 
@@ -313,14 +315,15 @@ def main():
     else:
         runs_to_execute = list(range(args.runs))
 
-    # Run primary dimension reduction type
-    for run in runs_to_execute:
-        gridSearch(embedding_file, run, args.dr_type, args.resolution, embeddingModel, plotting=plot)
-
-    # Run secondary optional dimension reduction type if provided
+    #Sets the secondary dimension reduction type if provided
+    second_dr_type = args.dr_type
     if args.dr_type_secondary:
-        for run in runs_to_execute:
-            gridSearch(embedding_file, run, args.dr_type_secondary, args.resolution, embeddingModel, plotting=plot)
+        second_dr_type = args.dr_type_secondary
+
+    #Runs primary dimension reduction type
+    for run in runs_to_execute:
+        gridSearch(embedding_file, run, args.dr_type, second_dr_type, args.resolution, embeddingModel, plotting=plot)
+
 
 if __name__ == "__main__":
     main()
