@@ -6,6 +6,7 @@ from Layers import NoiseLayer, ReductionLayer
 from scipy.spatial.distance import pdist
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.cluster import DBSCAN
 from metrics import metric_pearson_correlation, metric_cluster_ordering, metric_continuity, metric_silhouette, metric_trustworthiness, metric_spearman_correlation
 
 def Factory(layers,loaded_embeddings,loaded_categories,loaded_categories_list,unchanged,original_embeddings, comparison, D_high):
@@ -83,6 +84,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, resolution, embedding
     spearman = np.zeros((len(epsilons), len(outputDimensions)))
     silhouette = np.zeros((len(epsilons), len(outputDimensions)))
     wall_clock_time = np.zeros((len(epsilons), len(outputDimensions)))
+    dbscan_clusters = np.zeros((len(epsilons), len(outputDimensions)))
 
     save_dict = {}
 
@@ -129,7 +131,12 @@ def gridSearch(embeddingFile, run, dimensionReductionType, resolution, embedding
             spearman[x][y] = spearmanMetric[0]
             silhouette[x][y] = silhouetteMetric
             wall_clock_time[x][y] = endTime - startTime
-            
+
+            # Estimate number of clusters via DBSCAN on final reduced embeddings
+            dbscan_labels = DBSCAN().fit_predict(loaded_emb)
+            n_clusters = len(set(dbscan_labels) - {-1})
+            dbscan_clusters[x][y] = n_clusters
+
             # Save embeddings for this epsilon/dimension configuration
             save_dict[f"loaded_embeddings_eps_{epsilon}_dim_{outputDim}"] = loaded_emb
             save_dict[f"unchanged_embeddings_eps_{epsilon}_dim_{outputDim}"] = unchanged_emb
@@ -189,6 +196,16 @@ def gridSearch(embeddingFile, run, dimensionReductionType, resolution, embedding
         axes[1, 3].set_xlabel('Output Dimension')
         axes[1, 3].set_ylabel('Epsilon')
 
+        fig2, ax2 = plt.subplots(figsize=(10, 6))
+        fig2.suptitle(f"DBSCAN Estimated Clusters — {embeddingModel}", fontsize=12)
+        sns.heatmap(dbscan_clusters, xticklabels=outputDimensions, yticklabels=epsilons, annot=True, fmt=".0f", cmap="plasma", ax=ax2)
+        ax2.set_title('DBSCAN Estimated Clusters')
+        ax2.set_xlabel('Output Dimension')
+        ax2.set_ylabel('Epsilon')
+        fig2.tight_layout()
+        fig2.savefig(f"gridsearch_dbscan_clusters_{embeddingModel}_{dimensionReductionType}_{str(run)}.png")
+        plt.close(fig2)
+
         plt.tight_layout()
         fig.subplots_adjust(top=0.94)
         plt.savefig(f"gridsearch_heatmaps{embeddingModel}_{dimensionReductionType}_{str(run)}.png")
@@ -206,10 +223,10 @@ def gridSearch(embeddingFile, run, dimensionReductionType, resolution, embedding
         "wall_clock_time": wall_clock_time,
         "average_metrics": average_metrics,
         "grid": grid,
+        "dbscan_clusters": dbscan_clusters,
         "embeddingModel": embeddingModel,
     })
-    if dimensionReductionType != secondReductionType:
-        dimensionReductionType = f"{dimensionReductionType}_{secondReductionType}"
+
     saveResults(save_dict, dimensionReductionType, run, embeddingModel)
     
 
