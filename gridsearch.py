@@ -226,7 +226,8 @@ def gridSearch(embeddingFile, run, dimensionReductionType, resolution, embedding
         "dbscan_clusters": dbscan_clusters,
         "embeddingModel": embeddingModel,
     })
-
+    if dimensionReductionType != secondReductionType:
+        dimensionReductionType = f"{dimensionReductionType}_{secondReductionType}"
     saveResults(save_dict, dimensionReductionType, run, embeddingModel)
     
 
