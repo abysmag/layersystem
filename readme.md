@@ -1,5 +1,15 @@
 
-# Steps
+# Layer based system for dimensionality reduction
+
+![alt text](examples/example_plot.png)
+TODO: find a name and give a brief explanation
+
+## Setup
+
+TODO:
+explain setup
+
+## Steps
 
 1. Clean the data with preprocess/clean.py to get rid of empty datapoints
 2. Run one of the scripts in embedding to save the documents as embeddings, there are 3 options for models (bert, gemma300m, vaultgemma) provided
@@ -17,16 +27,11 @@
     - Option 3: -f --files Choose files to add manually
     - -o --output Change output file name
     - -ao --average-ouput Change the average plot's file name
-5. 
+5. Compare graphs and find the best balance for the required epsilon
+6. Make/edit a json layer file (examples in examples/) then run `python Factory.py path_to_json`
+    - The layers are executed from top to bottom and there can be as many layers as needed.
 
-
-
-
-
-
-Dimensionality Reduction types:
-
-Metrics
+## Dimensionality Reduction types:
 
     - PCA 
     - TSNE
@@ -37,7 +42,20 @@ Metrics
     - SOM
     - UMAP
 
-Resolutions Epsilons | output dimensions
+## Metrics
+
+    - Contiunity
+    - Trustworthiness
+    - Cluster Ordering
+    - Pearson Correlation
+    - Spearman Correlation
+    - Silhouette Score
+    - Average of the above metrics
+    - CPU Process time
+    - Estimated number of clusters
+    
+
+## Resolutions: Epsilons | output dimensions
 
     - 0 [1,2] | [768,2]
     - 1 [1,10,50,100,500,1000] | [768,3,2]

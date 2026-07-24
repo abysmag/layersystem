@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-
+# Written in part by gemini 3.1 Pro and Claude Opus 4.6
 # ---------------------------------------------------------------------------
 # Shared constants
 # ---------------------------------------------------------------------------
@@ -287,7 +287,7 @@ def main():
         description="Plot gridsearch results comparison as an Nx9 grid of heatmaps."
     )
     parser.add_argument(
-        "files", nargs="*",
+        "-f", "--files", nargs="*",
         help="Paths to gridsearch .npz result files (optional if -d or -c is used)"
     )
     parser.add_argument(
