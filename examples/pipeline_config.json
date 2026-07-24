@@ -1,0 +1,32 @@
+{
+  "pipeline_name": "Privacy-Preserving Dimensionality Reduction",
+  "description": "Sequential layers for embedding text, adding noise, and reducing dimensions.",
+  "embedding_saved": true,
+  "embedding_data": "embeddingdata.npz",
+  "proven_private": false,
+  "comparison": true,
+  "metrics": true,
+  "layers": [
+    {
+      "type": "Algorithm",
+      "parameters": {
+        "method": "PCA",
+        "output_size": 128
+      }
+    },
+    {
+      "type": "Noise",
+      "parameters": {
+        "distribution": "gamma",
+        "epsilon": 250
+      }
+    },
+    {
+      "type": "Algorithm",
+      "parameters": {
+        "method": "latentDA",
+        "output_size": 2
+      }
+    }
+  ]
+}
