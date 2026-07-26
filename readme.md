@@ -1,13 +1,22 @@
 
-# Layer based system for dimensionality reduction
+# Layer based system for differential privacy and dimensionality reduction
+
+## Goal: Find out when is the best time to add noise for differential privacy to document embeddings
+
+
 
 ![alt text](examples/example_plot.png)
-TODO: find a name and give a brief explanation
+
 
 ## Setup
 
-TODO:
-explain setup
+Requirements: 
+    
+    - 16GB+ of avaliable system memory
+    - GPU for embedding
+    - CPU time
+    Python 3.10+ virutal environment
+`pip install -r requirements.txt`
 
 ## Steps
 
