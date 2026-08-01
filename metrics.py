@@ -2,8 +2,10 @@
 # https://github.com/hpicgs/topic-models-and-dimensionality-reduction-sensitivity-study
 import numpy as np
 from scipy import spatial, stats
-from sklearn.neighbors import NearestCentroid
 from sklearn.metrics import silhouette_score
+from sklearn.neighbors import NearestCentroid
+
+
 def get_squared_distances_if_necessary(D_high_l, D_low_l):
     if isinstance(D_high_l, list) or len(D_high_l.shape) == 1:
         D_high = spatial.distance.squareform(D_high_l)
@@ -114,3 +116,11 @@ def metric_cluster_ordering(x_low1, x_low2, y):
 def compute_distance_list(X, eval_distance_metric='euclidean'):
     return spatial.distance.pdist(X, eval_distance_metric)
 
+def metric_absolute_difference_distance_consistency(layout1, layout2, y):
+    y_arr = np.asarray(y)
+    
+    def _distance_consistency(layout):
+        clf = NearestCentroid().fit(layout, y_arr)
+        return np.mean(clf.predict(layout) == y_arr)
+
+    return abs(_distance_consistency(layout1) - _distance_consistency(layout2))

@@ -4,10 +4,10 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Load VaultGemma-1B
-model_name = "google/vaultgemma-1b"
+model_name = "google/gemma-3-1b-pt"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(
-    "google/vaultgemma-1b",
+    "google/gemma-3-1b-pt",
     device_map="auto"  # This automatically manages the memory footprint
 )
 
@@ -75,7 +75,7 @@ with torch.no_grad():
 
 # Final Document Embeddings ready for testing
 document_embeddings = np.vstack(all_embeddings)
-modelName="Vaultgemma-1b"
+modelName="gemma-3-1b-pt"
 np.savez_compressed(
     f"embeddingdata{modelName}.npz",
     embeddings=document_embeddings,

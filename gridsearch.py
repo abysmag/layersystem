@@ -1,13 +1,23 @@
-import time
-import os
-import numpy as np
 import argparse
-from Layers import NoiseLayer, ReductionLayer
-from scipy.spatial.distance import pdist
+import os
+import time
+
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
+from scipy.spatial.distance import pdist
 from sklearn.cluster import DBSCAN
-from metrics import metric_pearson_correlation, metric_cluster_ordering, metric_continuity, metric_silhouette, metric_trustworthiness, metric_spearman_correlation
+
+from Layers import NoiseLayer, ReductionLayer
+from metrics import (
+    metric_cluster_ordering,
+    metric_continuity,
+    metric_pearson_correlation,
+    metric_silhouette,
+    metric_spearman_correlation,
+    metric_trustworthiness,
+)
+
 
 def Factory(layers,loaded_embeddings,loaded_categories,loaded_categories_list,unchanged,original_embeddings, comparison, D_high):
    
@@ -204,12 +214,12 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
         ax2.set_xlabel('Output Dimension')
         ax2.set_ylabel('Epsilon')
         fig2.tight_layout()
-        fig2.savefig(f"gridsearch_dbscan_clusters_{embeddingModel}_{dimensionReductionType}_{str(run)}.png")
+        fig2.savefig(f"gridsearch_dbscan_clusters_{embeddingModel}_{dimensionReductionType}_{run!s}.png")
         plt.close(fig2)
 
         plt.tight_layout()
         fig.subplots_adjust(top=0.94)
-        plt.savefig(f"gridsearch_heatmaps{embeddingModel}_{dimensionReductionType}_{str(run)}.png")
+        plt.savefig(f"gridsearch_heatmaps{embeddingModel}_{dimensionReductionType}_{run!s}.png")
 
     # Save metrics and embeddings to npz file
     save_dict.update({
@@ -237,8 +247,8 @@ def saveResults(save_dict, dimensionReductionType, run, embeddingModel):
     path = f"runs/{embeddingModel}/{dimensionReductionType}/"
     if not os.path.exists(path):
          os.makedirs(path)
-    np.savez(f"runs/{embeddingModel}/{dimensionReductionType}/gridsearch_results_{dimensionReductionType}_{str(run)}.npz", **save_dict)
-    print(f"Saved results and embeddings to runs/{embeddingModel}/{dimensionReductionType}/gridsearch_results_{dimensionReductionType}_{str(run)}.npz")
+    np.savez(f"runs/{embeddingModel}/{dimensionReductionType}/gridsearch_results_{dimensionReductionType}_{run!s}.npz", **save_dict)
+    print(f"Saved results and embeddings to runs/{embeddingModel}/{dimensionReductionType}/gridsearch_results_{dimensionReductionType}_{run!s}.npz")
 
 
 def main():
@@ -305,7 +315,7 @@ def main():
                 embeddingModel = str(emb_model_val)
         else:
             embeddingModel = "UnknownModel"
-    except Exception as e:
+    except FileNotFoundError as e:
         print(f"Error loading embedding model from '{embedding_file}': {e}")
         embeddingModel = "UnknownModel"
 

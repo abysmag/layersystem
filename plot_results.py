@@ -1,8 +1,9 @@
+import argparse
 import os
 import sys
-import argparse
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 
 # Written in part by gemini 3.1 Pro and Claude Opus 4.6
@@ -67,14 +68,14 @@ def load_run(file_path):
 
     try:
         data = np.load(file_path, allow_pickle=True)
-    except Exception as e:
+    except FileNotFoundError as e:
         print(f"Error: Failed to load '{file_path}': {e}")
         sys.exit(1)
 
     # Retrieve grid parameters
     output_dimensions = data.get("output_dimensions", data.get("outputDimensions", None))
     if output_dimensions is None:
-        for k in data.keys():
+        for k in data:
             if "dimension" in k.lower():
                 output_dimensions = data[k]
                 break
@@ -110,8 +111,8 @@ def load_run(file_path):
                         + np.abs(data["spearman"])
                         + data["silhouette"]
                     ) / 6.0
-                except Exception:
-                    print(f"Warning: Could not compute 'average_metrics' on the fly for '{file_path}'.")
+                except (ValueError, ZeroDivisionError) as e:
+                    print(f"Warning: Could not compute 'average_metrics' on the fly for '{file_path}'. Error: {e}")
                     metric_data = np.zeros((len(epsilons), len(output_dimensions)))
             else:
                 print(f"Warning: Metric '{metric_key}' not found in '{file_path}'. Using zeros.")
