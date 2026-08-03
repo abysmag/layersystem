@@ -10,6 +10,7 @@ from sklearn.cluster import DBSCAN
 
 from Layers import NoiseLayer, ReductionLayer
 from metrics import (
+    metric_absolute_difference_distance_consistency,
     metric_cluster_ordering,
     metric_continuity,
     metric_pearson_correlation,
@@ -49,8 +50,8 @@ def Factory(layers,loaded_embeddings,loaded_categories,loaded_categories_list,un
     pearson = metric_pearson_correlation(loaded_embeddings, unchanged)
     spearman = metric_spearman_correlation(loaded_embeddings, unchanged)
     silhouette = metric_silhouette(loaded_embeddings, loaded_categories)
-    
-    return continuity, trustworthiness, cluster_ordering, pearson, spearman, silhouette, loaded_embeddings, unchanged
+    absolute = metric_absolute_difference_distance_consistency(loaded_embeddings, unchanged, loaded_categories)
+    return continuity, trustworthiness, cluster_ordering, pearson, spearman, silhouette, absolute, loaded_embeddings, unchanged
 
 
 
@@ -95,6 +96,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
     silhouette = np.zeros((len(epsilons), len(outputDimensions)))
     wall_clock_time = np.zeros((len(epsilons), len(outputDimensions)))
     dbscan_clusters = np.zeros((len(epsilons), len(outputDimensions)))
+    absolute_difference = np.zeros((len(epsilons), len(outputDimensions)))
 
     save_dict = {}
 
@@ -131,7 +133,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
                 #def Factory(layers,loaded_embeddings,loaded_categories,loaded_categories_list,unchanged,original_embeddings, comparison):
                 # 
             startTime = time.process_time()
-            continuityMetric, trustworthinessMetric, cluster_orderingMetric, pearsonMetric, spearmanMetric, silhouetteMetric, loaded_emb, unchanged_emb = Factory(layers, loaded_embeddings, loaded_categories, loaded_categories_list, unchanged, original_embeddings, True, D_high)
+            continuityMetric, trustworthinessMetric, cluster_orderingMetric, pearsonMetric, spearmanMetric, silhouetteMetric, absoluteMetric, loaded_emb, unchanged_emb = Factory(layers, loaded_embeddings, loaded_categories, loaded_categories_list, unchanged, original_embeddings, True, D_high)
             endTime = time.process_time()
             grid[x][y] = 1
             continuity[x][y] = continuityMetric
@@ -140,6 +142,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
             pearson[x][y] = pearsonMetric[0]
             spearman[x][y] = spearmanMetric[0]
             silhouette[x][y] = silhouetteMetric
+            absolute_difference[x][y] = absoluteMetric
             wall_clock_time[x][y] = endTime - startTime
 
             #This estimates the number of clusters
@@ -231,6 +234,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
         "pearson": pearson,
         "spearman": spearman,
         "silhouette": silhouette,
+        "absoluteabsolute_difference_differece": absolute_difference,
         "wall_clock_time": wall_clock_time,
         "average_metrics": average_metrics,
         "dbscan_clusters": dbscan_clusters,
