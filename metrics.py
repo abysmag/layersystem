@@ -4,7 +4,7 @@ import numpy as np
 from scipy import spatial, stats
 from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from sklearn.neighbors import NearestCentroid, NearestNeighbors
-from kDBCV import DBCV_Score
+from kDBCV import DBCV_score
 
 def get_squared_distances_if_necessary(D_high_l, D_low_l):
     if isinstance(D_high_l, list) or len(D_high_l.shape) == 1:
