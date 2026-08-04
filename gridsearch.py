@@ -17,7 +17,6 @@ from metrics import (
     metric_silhouette,
     metric_spearman_correlation,
     metric_trustworthiness,
-    metric_kdbcv,
     metric_spatial_entropy,
     metric_calinski_harabasz,
     metric_overplotting_penalty,
@@ -105,8 +104,6 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
     silhouette = np.zeros((len(epsilons), len(outputDimensions)))
     wall_clock_time = np.zeros((len(epsilons), len(outputDimensions)))
     absolute_difference = np.zeros((len(epsilons), len(outputDimensions)))
-
-    kdbcv_scores = np.zeros((len(epsilons), len(outputDimensions)))
     spatial_entropy = np.zeros((len(epsilons), len(outputDimensions)))
     calinski_harabasz = np.zeros((len(epsilons), len(outputDimensions)))
     overplotting_penalty = np.zeros((len(epsilons), len(outputDimensions)))
@@ -165,11 +162,11 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
             n_clusters = len(set(dbscan_labels) - {-1})
             dbscan_clusters[x][y] = n_clusters
             entropy_val = metric_spatial_entropy(loaded_emb)
-            kdbcv_val = metric_kdbcv(loaded_emb, dbscan_labels)
+            
             calinski_val = metric_calinski_harabasz(loaded_emb, dbscan_labels)
             overplot_val = metric_overplotting_penalty(loaded_emb)
             hopkins_val = metric_hopkins_statistic(loaded_emb)
-            kdbcv_scores[x][y] = kdbcv_val
+
             spatial_entropy[x][y] = entropy_val
             calinski_harabasz[x][y] = calinski_val
             overplotting_penalty[x][y] = overplot_val
@@ -268,7 +265,6 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
         "calinski_harabasz": calinski_harabasz,
         "overplotting_penalty": overplotting_penalty,
         "hopkins_statistic": hopkins_statistic,
-        "dbcv": kdbcv_scores,
         "embeddingModel": embeddingModel,
         "primaryDimReductType": dimensionReductionType,
         "secondaryDimReductType": secondDimensionReductionType,

@@ -30,7 +30,6 @@ HUMAN_UTILITY_METRICS_INFO = [
     ("calinski_harabasz",      "Calinski-Harabasz Index"),
     ("overplotting_penalty",   "Overplotting / Crowding Penalty"),
     ("hopkins_statistic",      "Hopkins Statistic"),
-    ("dbcv",                   "Density-Based Clustering Validation"),
     ("absolute_difference",    "Abs Diff Distance Consistency"),
     ("estimated_human_utility", "Estimated Human Utility"),
 ]
@@ -50,7 +49,7 @@ METRIC_RANGES = {
     "hopkins_statistic": (0.0, 1.0),
     "overplotting_penalty": (0.0, 1.0),
     "estimated_human_utility": (None, None),
-    # dbscan_clusters, spatial_entropy, calinski_harabasz, dbcv -> auto-scale
+    # dbscan_clusters, spatial_entropy, calinski_harabasz -> auto-scale
 }
 
 # Metrics that benefit from a diverging colormap centred at 0
@@ -398,7 +397,7 @@ def main():
         "-hu", "--human-utility",
         action="store_true",
         help="Also generate the human utility sister plots (DBSCAN, entropy, "
-             "Calinski-Harabasz, overplotting, Hopkins, DBCV, abs diff, and "
+             "Calinski-Harabasz, overplotting, Hopkins, abs diff, and "
              "their average 'Estimated Human Utility')"
     )
     args = parser.parse_args()

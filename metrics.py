@@ -4,7 +4,6 @@ import numpy as np
 from scipy import spatial, stats
 from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from sklearn.neighbors import NearestCentroid, NearestNeighbors
-from kDBCV import DBCV_score
 
 def get_squared_distances_if_necessary(D_high_l, D_low_l):
     if isinstance(D_high_l, list) or len(D_high_l.shape) == 1:
@@ -124,30 +123,6 @@ def metric_absolute_difference_distance_consistency(layout1, layout2, y):
         return np.mean(clf.predict(layout) == y_arr)
 
     return abs(_distance_consistency(layout1) - _distance_consistency(layout2))
-
-
-
-def metric_kdbcv(X, labels, max_samples=1000, random_state=None):
-    n_points = X.shape[0]
-    
-    if n_points > max_samples:
-        rng = np.random.default_rng(random_state)
-        indices = rng.choice(n_points, size=max_samples, replace=False)
-        X_sub = X[indices]
-        labels_sub = labels[indices]
-    else:
-        X_sub = X
-        labels_sub = labels
-
-    # Ensure there is at least one non-noise cluster (-1 in DBSCAN) in the subset
-    if len(set(labels_sub) - {-1}) == 0:
-        return np.nan 
-
-    # batch_mode=True suppresses stdout memory errors if you hit kDBCV's RAM limit during a grid search
-    score = DBCV_Score(X_sub, labels_sub, batch_mode=True)
-    
-    # kDBCV returns -1.0 if the dataset exceeds its hardcoded 25GB memory cutoff
-    return score if score != -1.0 else np.nan
 
 def metric_spatial_entropy(X, bins=50):
     # Bin the 2D coordinates into a grid
