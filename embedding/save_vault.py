@@ -15,7 +15,7 @@ cfg = get_dataset_config(args.dataset)
 
 # Load VaultGemma-1B
 model_name = "google/vaultgemma-1b"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
 model = AutoModelForCausalLM.from_pretrained(
     "google/vaultgemma-1b",
     device_map="auto"  # This automatically manages the memory footprint
