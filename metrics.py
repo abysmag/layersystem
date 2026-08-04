@@ -2,9 +2,9 @@
 # https://github.com/hpicgs/topic-models-and-dimensionality-reduction-sensitivity-study
 import numpy as np
 from scipy import spatial, stats
-from sklearn.metrics import silhouette_score
-from sklearn.neighbors import NearestCentroid
-
+from sklearn.metrics import silhouette_score, calinski_harabasz_score
+from sklearn.neighbors import NearestCentroid, NearestNeighbors
+from kdbcv import DBCV_Score
 
 def get_squared_distances_if_necessary(D_high_l, D_low_l):
     if isinstance(D_high_l, list) or len(D_high_l.shape) == 1:
@@ -124,3 +124,104 @@ def metric_absolute_difference_distance_consistency(layout1, layout2, y):
         return np.mean(clf.predict(layout) == y_arr)
 
     return abs(_distance_consistency(layout1) - _distance_consistency(layout2))
+
+
+
+def metric_kdbcv(X, labels, max_samples=1000, random_state=None):
+    n_points = X.shape[0]
+    
+    if n_points > max_samples:
+        rng = np.random.default_rng(random_state)
+        indices = rng.choice(n_points, size=max_samples, replace=False)
+        X_sub = X[indices]
+        labels_sub = labels[indices]
+    else:
+        X_sub = X
+        labels_sub = labels
+
+    # Ensure there is at least one non-noise cluster (-1 in DBSCAN) in the subset
+    if len(set(labels_sub) - {-1}) == 0:
+        return np.nan 
+
+    # batch_mode=True suppresses stdout memory errors if you hit kDBCV's RAM limit during a grid search
+    score = DBCV_Score(X_sub, labels_sub, batch_mode=True)
+    
+    # kDBCV returns -1.0 if the dataset exceeds its hardcoded 25GB memory cutoff
+    return score if score != -1.0 else np.nan
+
+def metric_spatial_entropy(X, bins=50):
+    # Bin the 2D coordinates into a grid
+    hist, _, _ = np.histogram2d(X[:, 0], X[:, 1], bins=bins)
+    
+    # Normalize to get probability distribution
+    p = hist / np.sum(hist)
+    
+    # Filter out empty bins to avoid log(0) errors
+    p_nonzero = p[p > 0]
+    
+    # Calculate Shannon entropy
+    entropy = -np.sum(p_nonzero * np.log2(p_nonzero))
+    
+    return entropy
+
+def metric_calinski_harabasz(X, labels):
+    # Isolate points that actually belong to a cluster
+    mask = labels != -1
+    X_clustered = X[mask]
+    labels_clustered = labels[mask]
+    
+    # Calinski-Harabasz mathematically requires at least 2 clusters
+    if len(np.unique(labels_clustered)) < 2:
+        return np.nan
+        
+    return calinski_harabasz_score(X_clustered, labels_clustered)
+
+def metric_overplotting_penalty(X, epsilon=0.01):
+    # Fit KD-Tree on the 2D coordinates
+    # k=2 because the first nearest neighbor is the point itself (distance 0.0)
+    nn = NearestNeighbors(n_neighbors=2, algorithm='kd_tree').fit(X)
+    distances, _ = nn.kneighbors(X)
+    
+    # Isolate the distance to the actual nearest neighbor
+    nearest_dist = distances[:, 1]
+    
+    # Calculate the percentage of points closer than the visual threshold
+    penalty_ratio = np.sum(nearest_dist < epsilon) / X.shape[0]
+    
+    return penalty_ratio
+
+def metric_hopkins_statistic(X, max_samples=1000, random_state=None):
+    n_points, dims = X.shape
+    
+    if n_points < 2:
+        return np.nan
+        
+    M = min(n_points, max_samples)
+    rng = np.random.default_rng(random_state)
+    
+    # 1. Sample M real points from the dataset
+    X_sample = rng.choice(X, size=M, replace=False)
+    
+    # 2. Generate M uniform random points within the 2D bounding box of the dataset
+    min_bounds = X.min(axis=0)
+    max_bounds = X.max(axis=0)
+    uniform_sample = rng.uniform(min_bounds, max_bounds, size=(M, dims))
+    
+    # 3. Fit KD-Tree on the full dataset for fast lookup
+    nn = NearestNeighbors(n_neighbors=2, algorithm='kd_tree').fit(X)
+    
+    # 4. Find nearest neighbor distance from uniform points to the dataset
+    # (k=1 because the uniform points are not in X)
+    dist_uniform, _ = nn.kneighbors(uniform_sample, n_neighbors=1)
+    u_squared = np.sum(dist_uniform ** 2)
+    
+    # 5. Find nearest neighbor distance from the sampled real points to the rest of the dataset
+    # (k=2 because the first neighbor is the point itself)
+    dist_real, _ = nn.kneighbors(X_sample, n_neighbors=2)
+    w_squared = np.sum(dist_real[:, 1] ** 2)
+    
+    # 6. Calculate Hopkins Statistic
+    if (u_squared + w_squared) == 0:
+        return 0.5  # Avoid division by zero, return baseline for random distribution
+        
+    return u_squared / (u_squared + w_squared)

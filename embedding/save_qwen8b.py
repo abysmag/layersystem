@@ -1,17 +1,26 @@
+import argparse
+
 import numpy as np
 import pandas as pd
 import torch
 from sentence_transformers import SentenceTransformer
 
+from dataset_config import add_dataset_args, get_dataset_config
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-df = pd.read_csv("cleanedData.csv")
-CategoriesList = ["Crime", "Entertainment", "Politics", "Science"]
+parser = argparse.ArgumentParser(description="Generate Qwen embeddings for a dataset.")
+add_dataset_args(parser)
+args = parser.parse_args()
+
+cfg = get_dataset_config(args.dataset)
+df = pd.read_csv(cfg["csv"])
+CategoriesList = cfg["categories"]
 
 #df = df.sample(n=2000, random_state=42).reset_index(drop=True)
-IDs = df["ID"]
-Sentances = df["Content"]
-Categories = df["Category"]
+IDs = df[cfg["id_col"]]
+Sentances = df[cfg["text_col"]]
+Categories = df[cfg["category_col"]]
 
         
 
@@ -29,12 +38,13 @@ embeddings = model.encode(list(Sentances), normalize_embeddings=True, truncate_d
     #print(embedding)
 
 np.savez_compressed(
-    f"embeddingdata{modelName}.npz",
+    f"embeddingdata{modelName}_{args.dataset}.npz",
     embeddings=embeddings,
     categories=np.array(Categories),
     texts=np.array(Sentances),
     categorieslist=np.array(CategoriesList),
-    embeddingModel=modelName
+    embeddingModel=modelName,
+    dataset=args.dataset
 )
 
-print("saved data")
+print(f"saved data for dataset '{args.dataset}'")

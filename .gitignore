@@ -17,6 +17,7 @@ ENV/
 
 *.png
 runs/
+output/
 plots/
 searches/
 *.html

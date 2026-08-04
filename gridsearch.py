@@ -17,6 +17,11 @@ from metrics import (
     metric_silhouette,
     metric_spearman_correlation,
     metric_trustworthiness,
+    metric_kdbcv,
+    metric_spatial_entropy,
+    metric_calinski_harabasz,
+    metric_overplotting_penalty,
+    metric_hopkins_statistic,
 )
 
 
@@ -56,7 +61,7 @@ def Factory(layers,loaded_embeddings,loaded_categories,loaded_categories_list,un
 
 
 
-def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReductionType, resolution, embeddingModel, plotting=True):
+def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReductionType, resolution, embeddingModel, dataset="unknown", plotting=True):
     loaded = np.load(embeddingFile, allow_pickle=True)
     loaded_embeddings = loaded["embeddings"]
     loaded_categories = loaded["categories"]
@@ -64,6 +69,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
     #loaded_texts = loaded["texts"]
     unchanged = loaded_embeddings
     original_embeddings = loaded_embeddings.copy()
+    actual_embedding_dim = loaded_embeddings.shape[1]
     
     # Pre-calculate high-dimensional pairwise distance matrix to avoid recalculation inside Factory
     D_high = pdist(original_embeddings)
@@ -85,6 +91,9 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
         epsilons = [1,10,50,100,500,1000]
         outputDimensions = [768,3,2]
 
+    # Cap output dimensions to the actual embedding dimension
+    outputDimensions = [d for d in outputDimensions if d <= actual_embedding_dim]
+
 
     grid = np.zeros((len(epsilons), len(outputDimensions)))
 
@@ -95,9 +104,15 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
     spearman = np.zeros((len(epsilons), len(outputDimensions)))
     silhouette = np.zeros((len(epsilons), len(outputDimensions)))
     wall_clock_time = np.zeros((len(epsilons), len(outputDimensions)))
-    dbscan_clusters = np.zeros((len(epsilons), len(outputDimensions)))
     absolute_difference = np.zeros((len(epsilons), len(outputDimensions)))
 
+    kdbcv_scores = np.zeros((len(epsilons), len(outputDimensions)))
+    spatial_entropy = np.zeros((len(epsilons), len(outputDimensions)))
+    calinski_harabasz = np.zeros((len(epsilons), len(outputDimensions)))
+    overplotting_penalty = np.zeros((len(epsilons), len(outputDimensions)))
+    hopkins_statistic = np.zeros((len(epsilons), len(outputDimensions)))
+    dbscan_clusters = np.zeros((len(epsilons), len(outputDimensions)))
+    
     save_dict = {}
 
     
@@ -145,10 +160,21 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
             absolute_difference[x][y] = absoluteMetric
             wall_clock_time[x][y] = endTime - startTime
 
-            #This estimates the number of clusters
+            #This estimates the human visual utility
             dbscan_labels = DBSCAN().fit_predict(loaded_emb)
             n_clusters = len(set(dbscan_labels) - {-1})
             dbscan_clusters[x][y] = n_clusters
+            entropy_val = metric_spatial_entropy(loaded_emb)
+            kdbcv_val = metric_kdbcv(loaded_emb, dbscan_labels)
+            calinski_val = metric_calinski_harabasz(loaded_emb, dbscan_labels)
+            overplot_val = metric_overplotting_penalty(loaded_emb)
+            hopkins_val = metric_hopkins_statistic(loaded_emb)
+            kdbcv_scores[x][y] = kdbcv_val
+            spatial_entropy[x][y] = entropy_val
+            calinski_harabasz[x][y] = calinski_val
+            overplotting_penalty[x][y] = overplot_val
+            hopkins_statistic[x][y] = hopkins_val
+
 
             # Save embeddings for this epsilon/dimension configuration
             save_dict[f"loaded_embeddings_eps_{epsilon}_dim_{outputDim}"] = loaded_emb
@@ -169,7 +195,7 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
     if plotting:
         fig, axes = plt.subplots(2, 4, figsize=(32, 12))
 
-        fig.suptitle(f"Embedding Model: {embeddingModel}", fontsize=12)
+        fig.suptitle(f"Dataset: {dataset}  |  Embedding Model: {embeddingModel}", fontsize=12)
         sns.heatmap(continuity, xticklabels=outputDimensions, yticklabels=epsilons, annot=True, fmt=".3f", cmap="viridis", vmin=0.0, vmax=1.0, ax=axes[0, 0])
         axes[0, 0].set_title('Continuity')
         axes[0, 0].set_xlabel('Output Dimension')
@@ -211,18 +237,18 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
         axes[1, 3].set_ylabel('Epsilon')
 
         fig2, ax2 = plt.subplots(figsize=(10, 6))
-        fig2.suptitle(f"DBSCAN Estimated Clusters — {embeddingModel}", fontsize=12)
+        fig2.suptitle(f"DBSCAN Estimated Clusters — {dataset} — {embeddingModel}", fontsize=12)
         sns.heatmap(dbscan_clusters, xticklabels=outputDimensions, yticklabels=epsilons, annot=True, fmt=".0f", cmap="plasma", ax=ax2)
         ax2.set_title('DBSCAN Estimated Clusters')
         ax2.set_xlabel('Output Dimension')
         ax2.set_ylabel('Epsilon')
         fig2.tight_layout()
-        fig2.savefig(f"gridsearch_dbscan_clusters_{embeddingModel}_{dimensionReductionType}_{run!s}.png")
+        fig2.savefig(f"gridsearch_dbscan_clusters_{dataset}_{embeddingModel}_{dimensionReductionType}_{run!s}.png")
         plt.close(fig2)
 
         plt.tight_layout()
         fig.subplots_adjust(top=0.94)
-        plt.savefig(f"gridsearch_heatmaps{embeddingModel}_{dimensionReductionType}_{run!s}.png")
+        plt.savefig(f"gridsearch_heatmaps_{dataset}_{embeddingModel}_{dimensionReductionType}_{run!s}.png")
 
     # Save metrics and embeddings to npz file
     save_dict.update({
@@ -234,25 +260,31 @@ def gridSearch(embeddingFile, run, dimensionReductionType, secondDimensionReduct
         "pearson": pearson,
         "spearman": spearman,
         "silhouette": silhouette,
-        "absoluteabsolute_difference_differece": absolute_difference,
+        "absolute_difference": absolute_difference,
         "wall_clock_time": wall_clock_time,
         "average_metrics": average_metrics,
         "dbscan_clusters": dbscan_clusters,
+        "spatial_entropy": spatial_entropy,
+        "calinski_harabasz": calinski_harabasz,
+        "overplotting_penalty": overplotting_penalty,
+        "hopkins_statistic": hopkins_statistic,
+        "dbcv": kdbcv_scores,
         "embeddingModel": embeddingModel,
         "primaryDimReductType": dimensionReductionType,
         "secondaryDimReductType": secondDimensionReductionType,
+        "dataset": dataset,
     })
     if dimensionReductionType != secondDimensionReductionType:
         dimensionReductionType = f"{dimensionReductionType}_{secondDimensionReductionType}"
-    saveResults(save_dict, dimensionReductionType, run, embeddingModel)
+    saveResults(save_dict, dimensionReductionType, run, embeddingModel, dataset)
     
 
-def saveResults(save_dict, dimensionReductionType, run, embeddingModel):
-    path = f"runs/{embeddingModel}/{dimensionReductionType}/"
+def saveResults(save_dict, dimensionReductionType, run, embeddingModel, dataset="unknown"):
+    path = f"runs/{dataset}/{embeddingModel}/{dimensionReductionType}/"
     if not os.path.exists(path):
          os.makedirs(path)
-    np.savez(f"runs/{embeddingModel}/{dimensionReductionType}/gridsearch_results_{dimensionReductionType}_{run!s}.npz", **save_dict)
-    print(f"Saved results and embeddings to runs/{embeddingModel}/{dimensionReductionType}/gridsearch_results_{dimensionReductionType}_{run!s}.npz")
+    np.savez(f"{path}gridsearch_results_{dimensionReductionType}_{run!s}.npz", **save_dict)
+    print(f"Saved results and embeddings to {path}gridsearch_results_{dimensionReductionType}_{run!s}.npz")
 
 
 def main():
@@ -296,6 +328,11 @@ def main():
         action="store_true",
         help="Disable plotting of results (default: False)"
     )
+    parser.add_argument(
+        "--dataset",
+        default=None,
+        help="Dataset name (e.g., 'news', 'agnews', 'yelp'). Auto-detected from embedding file if not specified."
+    )
     args = parser.parse_args()
 
     plot = False
@@ -303,7 +340,7 @@ def main():
     if not args.no_plot:
         plot = True
 
-    # Load the embedding model name from the npz file
+    # Load the embedding model name and dataset from the npz file
     embedding_file = args.embedding_file
     if not os.path.exists(embedding_file):
         print(f"Error: Embedding file '{embedding_file}' does not exist.")
@@ -319,9 +356,20 @@ def main():
                 embeddingModel = str(emb_model_val)
         else:
             embeddingModel = "UnknownModel"
+
+        # Auto-detect dataset from npz if not specified via CLI
+        if args.dataset:
+            dataset = args.dataset
+        elif "dataset" in loaded:
+            ds_val = loaded["dataset"]
+            dataset = str(np.asarray(ds_val).item()) if np.asarray(ds_val).ndim == 0 else str(ds_val)
+        else:
+            dataset = "unknown"
+        print(f"Dataset: {dataset}, Embedding Model: {embeddingModel}")
     except FileNotFoundError as e:
         print(f"Error loading embedding model from '{embedding_file}': {e}")
         embeddingModel = "UnknownModel"
+        dataset = args.dataset or "unknown"
 
     # Determine which runs to execute
     if args.run is not None:
@@ -336,7 +384,7 @@ def main():
 
     #Runs primary dimension reduction type
     for run in runs_to_execute:
-        gridSearch(embedding_file, run, args.dr_type, second_dr_type, args.resolution, embeddingModel, plotting=plot)
+        gridSearch(embedding_file, run, args.dr_type, second_dr_type, args.resolution, embeddingModel, dataset=dataset, plotting=plot)
 
 
 if __name__ == "__main__":

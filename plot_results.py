@@ -11,7 +11,7 @@ import seaborn as sns
 # Shared constants
 # ---------------------------------------------------------------------------
 
-# The 9 metrics in the order defined/plotted in gridsearch.py
+# The main metrics in the order defined/plotted in gridsearch.py
 METRICS_INFO = [
     ("continuity",       "Continuity"),
     ("trustworthiness",  "Trustworthiness"),
@@ -21,8 +21,22 @@ METRICS_INFO = [
     ("silhouette",       "Silhouette Score"),
     ("average_metrics",  "Average Metrics"),
     ("wall_clock_time",  "CPU Process Time (s)"),
-    ("dbscan_clusters",  "DBSCAN # Clusters"),
 ]
+
+# Human utility metrics (separate plot via -hu / --human-utility)
+HUMAN_UTILITY_METRICS_INFO = [
+    ("dbscan_clusters",        "DBSCAN # Clusters"),
+    ("spatial_entropy",        "Spatial/Image Entropy"),
+    ("calinski_harabasz",      "Calinski-Harabasz Index"),
+    ("overplotting_penalty",   "Overplotting / Crowding Penalty"),
+    ("hopkins_statistic",      "Hopkins Statistic"),
+    ("dbcv",                   "Density-Based Clustering Validation"),
+    ("absolute_difference",    "Abs Diff Distance Consistency"),
+    ("estimated_human_utility", "Estimated Human Utility"),
+]
+
+# All metric keys across both plots (used for loading)
+ALL_METRICS_INFO = METRICS_INFO + HUMAN_UTILITY_METRICS_INFO
 
 # Fixed vmin/vmax for score-like metrics; omitted keys use auto-scale
 METRIC_RANGES = {
@@ -33,7 +47,10 @@ METRIC_RANGES = {
     "spearman":         (-1.0, 1.0),
     "silhouette":       (-1.0, 1.0),
     "average_metrics":  (-1.0, 1.0),
-    # dbscan_clusters -> auto-scale
+    "hopkins_statistic": (0.0, 1.0),
+    "overplotting_penalty": (0.0, 1.0),
+    "estimated_human_utility": (None, None),
+    # dbscan_clusters, spatial_entropy, calinski_harabasz, dbcv -> auto-scale
 }
 
 # Metrics that benefit from a diverging colormap centred at 0
@@ -45,7 +62,7 @@ def _cmap_for(metric_key):
 
 
 def _fmt_for(metric_key):
-    return ".0f" if metric_key == "dbscan_clusters" else ".3f"
+    return ".0f" if metric_key in ("dbscan_clusters",) else ".3f"
 
 
 def _str_from_npz(val):
@@ -96,10 +113,11 @@ def load_run(file_path):
         "embedding_model":      _str_from_npz(data.get("embeddingModel",           None)),
         "primary_dim_reduct":   _str_from_npz(data.get("primaryDimReductType",     None)),
         "secondary_dim_reduct": _str_from_npz(data.get("secondaryDimReductType",   None)),
+        "dataset":              _str_from_npz(data.get("dataset",                  None)),
         "metrics": {}
     }
 
-    for metric_key, _ in METRICS_INFO:
+    for metric_key, _ in ALL_METRICS_INFO:
         metric_data = data.get(metric_key, None)
         if metric_data is None:
             if metric_key == "average_metrics":
@@ -113,6 +131,24 @@ def load_run(file_path):
                     ) / 6.0
                 except (ValueError, ZeroDivisionError) as e:
                     print(f"Warning: Could not compute 'average_metrics' on the fly for '{file_path}'. Error: {e}")
+                    metric_data = np.zeros((len(epsilons), len(output_dimensions)))
+            elif metric_key == "estimated_human_utility":
+                # Compute as the average of the other human utility metrics
+                hu_keys = [k for k, _ in HUMAN_UTILITY_METRICS_INFO
+                           if k != "estimated_human_utility"]
+                available = []
+                for hk in hu_keys:
+                    hk_data = data.get(hk, None)
+                    if hk_data is not None:
+                        available.append(hk_data)
+                    else:
+                        # Also check if we already loaded it above
+                        if hk in run_data["metrics"]:
+                            available.append(run_data["metrics"][hk])
+                if available:
+                    metric_data = np.mean(available, axis=0)
+                else:
+                    print(f"Warning: No human utility sub-metrics found in '{file_path}'. Using zeros.")
                     metric_data = np.zeros((len(epsilons), len(output_dimensions)))
             else:
                 print(f"Warning: Metric '{metric_key}' not found in '{file_path}'. Using zeros.")
@@ -144,25 +180,29 @@ def load_run_group(files):
 # ---------------------------------------------------------------------------
 
 def _suptitle(run):
+    ds = run.get("dataset")              or "Unknown"
     em = run.get("embedding_model")      or "Unknown"
     pr = run.get("primary_dim_reduct")   or "Unknown"
     sr = run.get("secondary_dim_reduct") or "Unknown"
-    return (f"Embedding: {em}  |  Primary Dim Reduction: {pr}  "
+    return (f"Dataset: {ds}  |  Embedding: {em}  |  Primary Dim Reduction: {pr}  "
             f"|  Secondary Dim Reduction: {sr}")
 
 
-def plot_comparison(loaded_runs, output_path):
-    """Plot Nx9 comparison heatmap grid and save to output_path."""
+def _plot_grid(loaded_runs, output_path, metrics_info, title_suffix=""):
+    """Generic NxM comparison heatmap grid for any metrics list."""
     N = len(loaded_runs)
-    num_metrics = len(METRICS_INFO)
+    num_metrics = len(metrics_info)
     print(f"  Generating {N}x{num_metrics} comparison plot -> {output_path}")
 
     fig, axes = plt.subplots(N, num_metrics,
                              figsize=(6 * num_metrics, 5 * N), squeeze=False)
-    fig.suptitle(_suptitle(loaded_runs[0]), fontsize=14, fontweight="bold", y=1.002)
+    suptitle = _suptitle(loaded_runs[0])
+    if title_suffix:
+        suptitle += f"  |  {title_suffix}"
+    fig.suptitle(suptitle, fontsize=14, fontweight="bold", y=1.002)
 
     for i, run_data in enumerate(loaded_runs):
-        for j, (metric_key, metric_title) in enumerate(METRICS_INFO):
+        for j, (metric_key, metric_title) in enumerate(metrics_info):
             ax = axes[i, j]
             vmin, vmax = METRIC_RANGES.get(metric_key, (None, None))
             sns.heatmap(
@@ -186,18 +226,21 @@ def plot_comparison(loaded_runs, output_path):
     print(f"  Saved: {output_path}")
 
 
-def plot_average(loaded_runs, output_path):
-    """Plot 1x9 average heatmap grid and save to output_path."""
+def _plot_avg_grid(loaded_runs, output_path, metrics_info, title_suffix=""):
+    """Generic 1xM average heatmap grid for any metrics list."""
     N = len(loaded_runs)
-    num_metrics = len(METRICS_INFO)
+    num_metrics = len(metrics_info)
     print(f"  Generating 1x{num_metrics} average plot -> {output_path}")
 
     first = loaded_runs[0]
     fig_avg, axes_avg = plt.subplots(1, num_metrics,
                                      figsize=(6 * num_metrics, 5), squeeze=False)
-    fig_avg.suptitle(_suptitle(first), fontsize=14, fontweight="bold", y=1.05)
+    suptitle = _suptitle(first)
+    if title_suffix:
+        suptitle += f"  |  {title_suffix}"
+    fig_avg.suptitle(suptitle, fontsize=14, fontweight="bold", y=1.05)
 
-    for j, (metric_key, metric_title) in enumerate(METRICS_INFO):
+    for j, (metric_key, metric_title) in enumerate(metrics_info):
         avg_data = np.mean([r["metrics"][metric_key] for r in loaded_runs], axis=0)
         ax = axes_avg[0, j]
         vmin, vmax = METRIC_RANGES.get(metric_key, (None, None))
@@ -222,23 +265,49 @@ def plot_average(loaded_runs, output_path):
     print(f"  Saved: {output_path}")
 
 
+def plot_comparison(loaded_runs, output_path):
+    """Plot NxM comparison heatmap grid for main metrics."""
+    _plot_grid(loaded_runs, output_path, METRICS_INFO)
+
+
+def plot_average(loaded_runs, output_path):
+    """Plot 1xM average heatmap grid for main metrics."""
+    _plot_avg_grid(loaded_runs, output_path, METRICS_INFO)
+
+
+def plot_human_utility_comparison(loaded_runs, output_path):
+    """Plot NxM comparison heatmap grid for human utility metrics."""
+    _plot_grid(loaded_runs, output_path, HUMAN_UTILITY_METRICS_INFO,
+               title_suffix="Human Utility")
+
+
+def plot_human_utility_average(loaded_runs, output_path):
+    """Plot 1xM average heatmap grid for human utility metrics."""
+    _plot_avg_grid(loaded_runs, output_path, HUMAN_UTILITY_METRICS_INFO,
+                   title_suffix="Human Utility")
+
+
 # ---------------------------------------------------------------------------
 # Directory crawling
 # ---------------------------------------------------------------------------
 
-def crawl_and_plot(root_dir):
+def crawl_and_plot(root_dir, human_utility=False):
     """
     Walk root_dir recursively. For every leaf directory that contains .npz
-    files (excluding embeddingdata* files), generate a comparison plot and an
-    average plot saved inside that same directory.
+    files (excluding embeddingdata* files), generate plots saved to:
+      - output/<rel>/             for comparison (per-run) plots
+      - output/averages/<rel>/    for averaged plots
+
+    If human_utility is True, also generate the human utility sister plots.
 
     Expected layout::
 
         root_dir/
-          <embedding_model>/
-            <primary_secondary_dimreduct>/
-              data1.npz
-              data2.npz
+          <dataset>/
+            <embedding_model>/
+              <primary_secondary_dimreduct>/
+                data1.npz
+                data2.npz
     """
     if not os.path.isdir(root_dir):
         print(f"Error: '{root_dir}' is not a directory.")
@@ -269,11 +338,24 @@ def crawl_and_plot(root_dir):
 
         loaded_runs = load_run_group(files)
 
-        out_comparison = os.path.join(dirpath, "gridsearch_comparison.png")
-        out_average    = os.path.join(dirpath, "gridsearch_comparison_average.png")
+        # Build output directories mirroring the source tree
+        out_dir     = os.path.join("output", rel)
+        out_avg_dir = os.path.join("output", "averages", rel)
+        os.makedirs(out_dir, exist_ok=True)
+        os.makedirs(out_avg_dir, exist_ok=True)
+
+        out_comparison = os.path.join(out_dir, "gridsearch_comparison.png")
+        out_average    = os.path.join(out_avg_dir, "gridsearch_comparison_average.png")
 
         plot_comparison(loaded_runs, out_comparison)
         plot_average(loaded_runs, out_average)
+
+        if human_utility:
+            out_hu_comparison = os.path.join(out_dir, "gridsearch_human_utility.png")
+            out_hu_average    = os.path.join(out_avg_dir, "gridsearch_human_utility_average.png")
+            plot_human_utility_comparison(loaded_runs, out_hu_comparison)
+            plot_human_utility_average(loaded_runs, out_hu_average)
+
         print()
 
     print(f"Done. Generated plots for {total} group(s).")
@@ -285,7 +367,7 @@ def crawl_and_plot(root_dir):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Plot gridsearch results comparison as an Nx9 grid of heatmaps."
+        description="Plot gridsearch results comparison as heatmap grids."
     )
     parser.add_argument(
         "-f", "--files", nargs="*",
@@ -301,22 +383,29 @@ def main():
             "Root directory to crawl recursively. Every sub-directory that "
             "contains .npz files is treated as one run-group and gets its own "
             "pair of plots saved inside that sub-directory. "
-            "Expected layout: <root>/<embedding>/<primary_secondary_dimreduct>/*.npz"
+            "Expected layout: <root>/<dataset>/<embedding>/<primary_secondary_dimreduct>/*.npz"
         )
     )
     parser.add_argument(
-        "-o", "--output", default="gridsearch_comparison.png",
+        "-o", "--output", default=os.path.join("output", "gridsearch_comparison.png"),
         help="Output path for comparison plot (used with -d or positional files)"
     )
     parser.add_argument(
-        "-ao", "--average-output", default="gridsearch_comparison_average.png",
+        "-ao", "--average-output", default=os.path.join("output", "averages", "gridsearch_comparison_average.png"),
         help="Output path for average plot (used with -d or positional files)"
+    )
+    parser.add_argument(
+        "-hu", "--human-utility",
+        action="store_true",
+        help="Also generate the human utility sister plots (DBSCAN, entropy, "
+             "Calinski-Harabasz, overplotting, Hopkins, DBCV, abs diff, and "
+             "their average 'Estimated Human Utility')"
     )
     args = parser.parse_args()
 
     # ---- Mode 1: crawl an entire runs/ tree --------------------------------
     if args.crawl:
-        crawl_and_plot(args.crawl)
+        crawl_and_plot(args.crawl, human_utility=args.human_utility)
         return
 
     # ---- Mode 2: single flat directory or explicit file list ---------------
@@ -340,9 +429,24 @@ def main():
             parser.print_help()
             sys.exit(1)
 
+    # Ensure output directories exist
+    os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
+    os.makedirs(os.path.dirname(args.average_output) or ".", exist_ok=True)
+
     loaded_runs = load_run_group(files)
     plot_comparison(loaded_runs, args.output)
     plot_average(loaded_runs, args.average_output)
+
+    if args.human_utility:
+        # Derive human utility output paths from the main output paths
+        base, ext = os.path.splitext(args.output)
+        hu_output = f"{base}_human_utility{ext}"
+        base_avg, ext_avg = os.path.splitext(args.average_output)
+        hu_avg_output = f"{base_avg}_human_utility{ext_avg}"
+        os.makedirs(os.path.dirname(hu_output) or ".", exist_ok=True)
+        os.makedirs(os.path.dirname(hu_avg_output) or ".", exist_ok=True)
+        plot_human_utility_comparison(loaded_runs, hu_output)
+        plot_human_utility_average(loaded_runs, hu_avg_output)
 
 
 if __name__ == "__main__":

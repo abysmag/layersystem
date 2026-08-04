@@ -1,9 +1,19 @@
+import argparse
+
 import numpy as np
 import pandas as pd
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-# Load VaultGemma-1B
+from dataset_config import add_dataset_args, get_dataset_config
+
+parser = argparse.ArgumentParser(description="Generate Gemma-3 embeddings for a dataset.")
+add_dataset_args(parser)
+args = parser.parse_args()
+
+cfg = get_dataset_config(args.dataset)
+
+# Load Gemma-3-1B
 model_name = "google/gemma-3-1b-pt"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(
@@ -15,12 +25,12 @@ model = AutoModelForCausalLM.from_pretrained(
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
-df = pd.read_csv("cleanedData.csv")
-CategoriesList = ["Crime", "Entertainment", "Politics", "Science"]
+df = pd.read_csv(cfg["csv"])
+CategoriesList = cfg["categories"]
 
-IDs = df["ID"]
-Sentances = df["Content"].tolist()
-Categories = df["Category"]
+IDs = df[cfg["id_col"]]
+Sentances = df[cfg["text_col"]].tolist()
+Categories = df[cfg["category_col"]]
 
 # --- Mini-batch inference to stay within A40 VRAM (48 GB) ---
 # Tune BATCH_SIZE down if you still hit OOM; 32 is a safe starting point.
@@ -77,12 +87,13 @@ with torch.no_grad():
 document_embeddings = np.vstack(all_embeddings)
 modelName="gemma-3-1b-pt"
 np.savez_compressed(
-    f"embeddingdata{modelName}.npz",
+    f"embeddingdata{modelName}_{args.dataset}.npz",
     embeddings=document_embeddings,
     categories=np.array(Categories),
     texts=np.array(Sentances),
     categorieslist=np.array(CategoriesList),
-    embeddingModel=modelName
+    embeddingModel=modelName,
+    dataset=args.dataset
 )
 
-print(f"Saved {document_embeddings.shape[0]} embeddings of dimension {document_embeddings.shape[1]}.")
+print(f"Saved {document_embeddings.shape[0]} embeddings of dimension {document_embeddings.shape[1]} for dataset '{args.dataset}'.")

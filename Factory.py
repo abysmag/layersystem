@@ -17,6 +17,7 @@ def Factory(layers, embeddingFile, proven, comparison, metrics):
     loaded_categories = loaded["categories"]
     loaded_categories_list = loaded["categorieslist"]
     #loaded_texts = loaded["texts"]
+    dataset = str(np.asarray(loaded["dataset"]).item()) if "dataset" in loaded else "unknown"
     unchanged = loaded_embeddings
     original_embeddings = loaded_embeddings.copy()
     
@@ -64,6 +65,7 @@ def Factory(layers, embeddingFile, proven, comparison, metrics):
 
     #print(layers)
     fig, axes = plt.subplots(1, 2, figsize=(16, 8))
+    fig.suptitle(f"Dataset: {dataset}", fontsize=14)
 
     sns.scatterplot(x=unchanged[:, 0], y=unchanged[:, 1], hue=loaded_categories, alpha=0.6, ax=axes[0])
     axes[0].set_title('Without Noise')
@@ -77,7 +79,7 @@ def Factory(layers, embeddingFile, proven, comparison, metrics):
     axes[1].set_ylabel('Dimension 2')
 
     plt.tight_layout()
-    plt.savefig("test")
+    plt.savefig(f"test_{dataset}")
     if metrics:
         return metric
 
