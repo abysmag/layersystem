@@ -23,7 +23,7 @@ YELP_LABEL_MAP = {0: "1 star", 1: "2 stars", 2: "3 stars", 3: "4 stars", 4: "5 s
 def download_agnews(output_dir: str) -> str:
     """Download AG News train split and save as CSV."""
     print("Downloading AG News from HuggingFace...")
-    ds = load_dataset("ag_news", split="train")
+    ds = load_dataset("fancyzhx/ag_news", split="train")
 
     df = pd.DataFrame({
         "ID": range(len(ds)),
@@ -45,7 +45,7 @@ def download_agnews(output_dir: str) -> str:
 def download_yelp(output_dir: str, subset_size: int = 40000, seed: int = 42) -> str:
     """Download Yelp Review Full (5-class) train split, subsample, and save as CSV."""
     print("Downloading Yelp Review Full from HuggingFace...")
-    ds = load_dataset("yelp_review_full", split="train")
+    ds = load_dataset("Yelp/yelp_review_full", split="train")
 
     if subset_size and subset_size < len(ds):
         print(f"Subsampling {subset_size} from {len(ds)} samples (seed={seed})...")
